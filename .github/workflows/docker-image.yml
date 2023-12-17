@@ -66,7 +66,6 @@ jobs:
           login-server: tutrit.azurecr.io
           username: tutrit
           password: ${{ secrets.ACR_PASSWORD }}
-      - name: 'Build the Docker image'
       - name: 'Push the image to ghcr.io'
         run: |
           docker build . --file Dockerfile --tag ghcr.io/max-java/dockerized-azure:$VERSION

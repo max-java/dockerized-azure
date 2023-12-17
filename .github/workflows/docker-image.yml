@@ -60,17 +60,18 @@ jobs:
           registry: ghcr.io
           username: ${{github.actor}}
           password: ${{secrets.GITHUB_TOKEN}}
+      - name: 'Push the image to ghcr.io'
+        run: |
+          docker build . --file Dockerfile --tag ghcr.io/max-java/dockerized-azure:$VERSION
+          docker push ghcr.io/max-java/dockerized-azure:$VERSION
       - name: 'Login to ACR'
         uses: azure/docker-login@v1
         with:
           login-server: tutrit.azurecr.io
           username: tutrit
           password: ${{ secrets.ACR_PASSWORD }}
-      - name: 'Push the image to ghcr.io'
-        run: |
-          docker build . --file Dockerfile --tag ghcr.io/max-java/dockerized-azure:$VERSION
-          docker push ghcr.io/max-java/dockerized-azure:$VERSION
       - name: 'Push the image to azurecr.io'
         run: |
+          echo ${{ secrets.ACR_PASSWORD }}
           docker build . --file Dockerfile --tag tutrit.azurecr.io/dockerized-azure:$VERSION
           docker push tutrit.azurecr.io//dockerized-azure:$VERSION

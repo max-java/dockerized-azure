@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  bcs-demo:
+    image: dockerized-azure:0.0.2
+    ports:
+      - '8080:8080'
+      - '5005:5005'
+    environment:
+      - SERVER_PORT=8080
+      - JAVA_DEBUG_PORT='*:5005'
+      - JAVA_DEBUG=true
+

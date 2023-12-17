@@ -1,0 +1,77 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 'Checkout project sources'
+        uses: actions/checkout@v3
+      - name: 'Setup java'
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: 'Setup Gradle'
+        uses: gradle/gradle-build-action@v2
+      - name: 'Set project version from gradle.build'
+        id: set_version
+        run: echo "GRADLE_VERSION=$(./gradlew properties -q | grep version | awk '{print $2}')" >> $GITHUB_ENV
+      - name: 'Set commit hash'
+        run: echo "GIT_HASH=$(git rev-parse --short "$GITHUB_SHA")" >> $GITHUB_ENV
+      - name: 'Evaluate version'
+        run: |
+          echo GITHUB_REF_NAME  ${GITHUB_REF_NAME}
+          echo GITHUB_REF_TYPE  ${GITHUB_REF_TYPE}
+          echo GRADLE_VERSION   $GRADLE_VERSION
+          echo GIT_HASH         $GIT_HASH       
+          if [ "$GITHUB_REF_TYPE" == "branch" ]; then
+            echo 'use application version from gradle.build file and git hash from commit for image version'
+            echo "VERSION=$GRADLE_VERSION-$GIT_HASH" >> $GITHUB_ENV
+          fi          
+          if [ "$GITHUB_REF_TYPE" == "tag" ]; then
+            if [[ ! "$GITHUB_REF_NAME" =~ ^$GRADLE_VERSION ]]; then
+              echo "::error::Tag '$GITHUB_REF_NAME' does not match project version '$GRADLE_VERSION': version tag should start with project version from gradle.build"
+              exit 1
+            fi
+            echo 'use git tag for image version'
+            echo "VERSION=$GITHUB_REF_NAME" >> $GITHUB_ENV
+          fi
+      - name: 'Run build with Gradle Wrapper'
+        run: ./gradlew bootJar
+      #        todo: this skipping doesn't work.
+      - name: 'Skip Docker image building'
+        if: ${{ !contains(env.GRADLE_VERSION, 'SNAPSHOT') && env.GITHUB_REF_TYPE == 'branch' }}
+        run: |
+          echo "Docker image will be created on the following conditions:"
+          echo "- if action is triggered by pushing tag and project version set to release"
+          echo "- if action is triggered by pushing commits to main branch and project version set to SNAPSHOT"
+          echo "Skipping docker image creation."
+          exit 0  # exit with success, skipping the subsequent steps
+      - name: 'Login to GitHub Container Registry'
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{github.actor}}
+          password: ${{secrets.GITHUB_TOKEN}}
+      - name: 'Login to ACR'
+        uses: azure/docker-login@v1
+        with:
+          login-server: tutrit.azurecr.io
+          username: tutrit
+          password: ${{ secrets.ACR_PASSWORD }}
+      - name: 'Build the Docker image'
+      - name: 'Push the image to ghcr.io'
+        run: |
+          docker build . --file Dockerfile --tag ghcr.io/max-java/dockerized-azure:$VERSION
+          docker push ghcr.io/max-java/dockerized-azure:$VERSION
+      - name: 'Push the image to azurecr.io'
+        run: |
+          docker build . --file Dockerfile --tag tutrit.azurecr.io/dockerized-azure:$VERSION
+          docker push tutrit.azurecr.io//dockerized-azure:$VERSION
